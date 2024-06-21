@@ -1,0 +1,21 @@
+# Arquivos binários ou executáveis
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Arquivos de objeto compilados
+*.o
+*.a
+
+# Arquivos de log
+*.log
+
+# Arquivos de configuração específicos do sistema operacional
+.idea/
+.vscode/
+.DS_Store
+
+# Arquivos de cache ou diretórios
+vendor/
+*.test
