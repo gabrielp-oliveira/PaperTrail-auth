@@ -39,11 +39,10 @@ func InitDB() {
 func createTables(db *sql.DB) {
 	createUsersTable := `
 CREATE TABLE IF NOT EXISTS users (
-	id SERIAL PRIMARY KEY,
-	email TEXT NOT NULL UNIQUE,
-	password TEXT NOT NULL,
-		dateTime TIMESTAMP NOT NULL
-
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL
 );
 `
 
@@ -59,7 +58,7 @@ CREATE TABLE IF NOT EXISTS pappers (
 	description TEXT NOT NULL,
 	path TEXT NOT NULL,
 	dateTime TIMESTAMP NOT NULL,
-	user_id INTEGER,
+	user_id BIGSERIAL,
 	FOREIGN KEY(user_id) REFERENCES users(id)
 );
 `

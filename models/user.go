@@ -10,9 +10,21 @@ import (
 )
 
 type User struct {
-	ID       int64
-	Email    string `binding:"required"`
-	Password string `binding:"required"`
+	ID       int64  `json:"id"`
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type UserWithoutPassword struct {
+	Email string `json:"email" binding:"required"`
+	User
+}
+
+func (u User) GetUser() UserWithoutPassword {
+	userWithoutPassword := UserWithoutPassword{
+		Email: u.Email,
+	}
+	return userWithoutPassword
 }
 
 func (u User) Save() (int64, error) {
@@ -23,17 +35,22 @@ func (u User) Save() (int64, error) {
 
 	if err == sql.ErrNoRows {
 
-		insertQuery := "INSERT INTO users(email, password, dateTime) VALUES ($1, $2, $3) RETURNING id"
-
 		hashedPassword, err := utils.HashPassword(u.Password)
 
 		if err != nil {
 			return 0, err
 		}
 
-		// result, err := stmt.Exec(u.Email, hashedPassword)
+		var insertQuery string
+		if u.ID == 0 {
+			insertQuery = "INSERT INTO users(email, password, created_at) VALUES ($1, $2, $3) RETURNING id"
+			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now()).Scan(&userID)
+		} else {
 
-		err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now()).Scan(&userID)
+			insertQuery = "INSERT INTO users(email, password, created_at, id) VALUES ($1, $2, $3, $4) RETURNING id"
+			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.ID).Scan(&userID)
+		}
+
 		if err != nil {
 			return 0, err
 		}
@@ -43,12 +60,12 @@ func (u User) Save() (int64, error) {
 	} else if userID != 0 {
 		return int64(userID), errors.New("User Already created")
 	}
-	return 0, err
+	return int64(userID), nil
 
 }
 
 func (u *User) ValidateCredentials() error {
-	query := "SELECT id, password FROM users WHERE email = ?"
+	query := "SELECT id, password FROM users WHERE email = $1"
 	row := db.DB.QueryRow(query, u.Email)
 
 	var retrievedPassword string
@@ -64,5 +81,23 @@ func (u *User) ValidateCredentials() error {
 		return errors.New("credentials invalid")
 	}
 
+	return nil
+}
+
+func (u *User) CreateInitialPapper() error {
+	var papper Papper
+
+	var path string = u.Email + "/new papper"
+
+	papper.Name = "new Papper"
+	papper.Description = "Default new papper description"
+	papper.Path = path
+	papper.DateTime = time.Now()
+	papper.UserID = u.ID
+
+	err := papper.Save()
+	if err != nil {
+		return err
+	}
 	return nil
 }
