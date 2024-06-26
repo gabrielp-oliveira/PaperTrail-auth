@@ -17,18 +17,19 @@ func RegisterRoutes(server *gin.Engine) {
 	server.POST("/signup", auth.Signup)
 	server.POST("/login", auth.Login)
 
-	googleAuth := server.Group("/auth/google")
+	// googleAuth := server.Group("/auth/google")
 
-	googleAuth.GET("/", handleMain)
-	googleAuth.GET("/login", auth.HandleGoogleLogin)
-	googleAuth.GET("/callback", auth.HandleGoogleCallback)
+	// googleAuth.GET("/", handleMain)
+	// googleAuth.GET("/login", auth.HandleGoogleLogin)
+	// googleAuth.GET("/callback", auth.HandleGoogleCallback)
 
-	// http.HandleFunc("/", handleMain)
-	// http.HandleFunc("/auth/google/login", auth.HandleGoogleLogin)
-	// http.HandleFunc("/auth/google/callback", auth.HandleGoogleCallback)
+	server.GET("/", handleMain)
+	server.GET("/auth/google/login", auth.HandleGoogleLogin)
+	server.GET("/auth/google/callback", auth.HandleGoogleCallback)
 
 }
 
+// http://localhost:8080/auth/google/login
 func handleMain(c *gin.Context) {
 	var htmlIndex = `<html>
 	<body>

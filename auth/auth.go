@@ -13,6 +13,7 @@ import (
 	"PaperTrail-auth.com/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -24,16 +25,8 @@ type GoogleUser struct {
 	Picture string `json:"picture"`
 }
 
-var (
-	googleOauthConfig = &oauth2.Config{
-		RedirectURL:  "http://localhost:8080/auth/google/callback",
-		ClientID:     os.Getenv("GOOGLE_OAUTH_CLIENT_ID"),
-		ClientSecret: os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET"),
-		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"},
-		Endpoint:     google.Endpoint,
-	}
-	oauthStateString = "randomstatestring"
-)
+var googleOauthConfig = startCredentials()
+var oauthStateString = "randomstatestring"
 
 func HandleGoogleLogin(c *gin.Context) {
 	url := googleOauthConfig.AuthCodeURL(oauthStateString)
@@ -82,12 +75,13 @@ func HandleGoogleCallback(c *gin.Context) {
 
 	user := models.User{
 		Email: googleUser.Email,
+		Name:  googleUser.Name,
 		ID:    i,
 		// Como a senha não é fornecida pelo Google, você pode deixar em branco ou gerar uma senha temporária/aleatória
-		// Password: "",
+		Password: "",
 	}
 
-	token, err := utils.GenerateToken(user.Email, user.ID)
+	token, err := utils.GenerateToken(user.Email, i)
 	if err != nil {
 		utils.RespondWithError(c, http.StatusInternalServerError, "Could not authenticate user.", err)
 		return
@@ -104,13 +98,9 @@ func HandleGoogleCallback(c *gin.Context) {
 		c.Redirect(http.StatusTemporaryRedirect, "/")
 		return
 	}
-	err = user.CreateInitialPapper()
-	if err != nil {
-		log.Printf("Get: %s\n", err)
-		c.Redirect(http.StatusTemporaryRedirect, "/")
-		return
-	}
+
 	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully", "userInfo": user.GetUser(), "token": token})
+
 }
 
 func Signup(context *gin.Context) {
@@ -129,11 +119,7 @@ func Signup(context *gin.Context) {
 		return
 	}
 	user.ID = userId
-	err = user.CreateInitialPapper()
-	if err != nil {
-		utils.RespondWithError(context, http.StatusBadRequest, "Could not create initial papper.", err)
-		return
-	}
+	// mandar email para validar o email.
 
 	context.JSON(http.StatusCreated, gin.H{"message": "User created successfully"})
 }
@@ -162,5 +148,29 @@ func Login(context *gin.Context) {
 		return
 	}
 
-	context.JSON(http.StatusOK, gin.H{"message": "Login successful!", "token": token})
+	context.JSON(http.StatusOK, gin.H{"message": "Login successful!", "token": token, "userInfo": user.GetUser()})
+}
+
+func startCredentials() *oauth2.Config {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf(".env load error: %v", err)
+	}
+	ClientID := os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
+	if ClientID == "" {
+		log.Fatalf("credentials error: %v", err)
+	}
+
+	ClientSecret := os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+	if ClientSecret == "" {
+		log.Fatalf("credentials error: %v", err)
+	}
+
+	return &oauth2.Config{
+		RedirectURL:  "http://localhost:8080/auth/google/callback",
+		ClientSecret: ClientSecret,
+		ClientID:     ClientID,
+		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"},
+		Endpoint:     google.Endpoint,
+	}
 }
