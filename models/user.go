@@ -16,19 +16,21 @@ type User struct {
 	Password string `json:"password"`
 }
 
-type UserWithoutPassword struct {
-	ID    int64  `json:"id"`
-	Email string `json:"email" binding:"required"`
-	Name  string `json:"name"`
+type UserSafe struct {
+	User
+	Password string `json:"-"` // Isso omite a propriedade Password na serialização JSON
 }
 
-func (u User) GetUser() UserWithoutPassword {
-	userWithoutPassword := UserWithoutPassword{
+func (u User) GetUser() UserSafe {
+	x := User{
 		Email: u.Email,
 		Name:  u.Name,
 		ID:    u.ID,
 	}
-	return userWithoutPassword
+	userSafe := UserSafe{
+		User: x,
+	}
+	return userSafe
 }
 
 func (u User) Save() (int64, error) {
