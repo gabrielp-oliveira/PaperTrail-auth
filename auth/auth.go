@@ -6,16 +6,14 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"strconv"
 
+	"PaperTrail-auth.com/googleClient"
 	"PaperTrail-auth.com/models"
 	"PaperTrail-auth.com/utils"
-
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
+
+	"google.golang.org/api/drive/v3"
+	"google.golang.org/api/option"
 )
 
 type GoogleUser struct {
@@ -25,11 +23,11 @@ type GoogleUser struct {
 	Picture string `json:"picture"`
 }
 
-var googleOauthConfig = startCredentials()
+var googleOauthConfig = googleClient.StartCredentials()
 var oauthStateString = "randomstatestring"
 
 func HandleGoogleLogin(c *gin.Context) {
-	url := googleOauthConfig.AuthCodeURL(oauthStateString)
+	url := googleClient.GetGoogleRedirectUrl()
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
@@ -41,8 +39,8 @@ func HandleGoogleCallback(c *gin.Context) {
 	}
 
 	code := c.Query("code")
+	googleOauthToken, err := googleClient.GetGoogleToken(googleOauthConfig, code)
 
-	googleOauthToken, err := googleOauthConfig.Exchange(context.Background(), code)
 	if err != nil {
 		log.Printf("oauthConf.Exchange() failed with '%s'\n", err)
 		c.Redirect(http.StatusTemporaryRedirect, "/")
@@ -71,24 +69,34 @@ func HandleGoogleCallback(c *gin.Context) {
 		c.Redirect(http.StatusTemporaryRedirect, "/")
 		return
 	}
-	i, _ := strconv.ParseInt(googleUser.ID, 10, 64)
 
 	user := models.User{
-		Email: googleUser.Email,
-		Name:  googleUser.Name,
-		ID:    i,
-		// Como a senha não é fornecida pelo Google, você pode deixar em branco ou gerar uma senha temporária/aleatória
-		Password: "",
+		Email:        googleUser.Email,
+		Name:         googleUser.Name,
+		ID:           googleUser.ID,
+		Password:     "",
+		AccessToken:  googleOauthToken.AccessToken,
+		RefreshToken: googleOauthToken.RefreshToken,
+		TokenExpiry:  googleOauthToken.Expiry,
+		Base_folder:  "",
 	}
 
-	token, err := utils.GenerateToken(user.Email, i)
+	token, err := utils.GenerateToken(user.Email, googleUser.ID)
 	if err != nil {
 		utils.RespondWithError(c, http.StatusInternalServerError, "Could not authenticate user.", err)
 		return
 	}
-	_, err = user.Save()
 
+	_, err = user.Save()
 	if err != nil && err.Error() == "User Already created" {
+		user.AccessToken = googleOauthToken.AccessToken
+		user.RefreshToken = googleOauthToken.RefreshToken
+		user.TokenExpiry = googleOauthToken.Expiry
+		err = user.UpdateToken()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to update token in database: " + err.Error()})
+			return
+		}
 		c.JSON(http.StatusCreated, gin.H{"userInfo": user.GetUser(), "token": token})
 		return
 	}
@@ -100,7 +108,6 @@ func HandleGoogleCallback(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully", "userInfo": user.GetUser(), "token": token})
-
 }
 
 func Signup(context *gin.Context) {
@@ -151,26 +158,46 @@ func Login(context *gin.Context) {
 	context.JSON(http.StatusOK, gin.H{"message": "Login successful!", "token": token, "userInfo": user.GetUser()})
 }
 
-func startCredentials() *oauth2.Config {
-	err := godotenv.Load()
+func ListFiles(c *gin.Context) {
+
+	userInfoInterface, exists := c.Get("userInfo")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "err.Error()"})
+	}
+
+	userInfo, ok := userInfoInterface.(models.UserSafe)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "err.Error()"})
+	}
+
+	user := models.User{
+		Email:        userInfo.Email,
+		Name:         userInfo.Name,
+		ID:           userInfo.ID,
+		Password:     "",
+		AccessToken:  userInfo.AccessToken,
+		RefreshToken: userInfo.RefreshToken,
+		TokenExpiry:  userInfo.TokenExpiry,
+	}
+
+	client, err := user.GetClient(googleOauthConfig)
 	if err != nil {
-		log.Fatalf(".env load error: %v", err)
-	}
-	ClientID := os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
-	if ClientID == "" {
-		log.Fatalf("credentials error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
-	ClientSecret := os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
-	if ClientSecret == "" {
-		log.Fatalf("credentials error: %v", err)
+	driveSrv, err := drive.NewService(context.Background(), option.WithHTTPClient(client))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve Drive client: " + err.Error()})
+		return
 	}
 
-	return &oauth2.Config{
-		RedirectURL:  "http://localhost:8080/auth/google/callback",
-		ClientSecret: ClientSecret,
-		ClientID:     ClientID,
-		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"},
-		Endpoint:     google.Endpoint,
+	files, err := driveSrv.Files.List().PageSize(10).Fields("nextPageToken, files(id, name)").Do()
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve files: " + err.Error()})
+		return
 	}
+
+	c.JSON(http.StatusOK, files.Files)
 }

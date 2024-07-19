@@ -39,34 +39,21 @@ func InitDB() {
 func createTables(db *sql.DB) {
 	createUsersTable := `
 CREATE TABLE IF NOT EXISTS users (
-    id BIGSERIAL PRIMARY KEY,
-	name TEXT NOT NULL,
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    accessToken TEXT,
+    refresh_token TEXT,
+    base_folder TEXT,
+    token_expiry TIMESTAMP
 );
 `
 
 	_, err := db.Exec(createUsersTable)
 	if err != nil {
 		log.Fatalf("Could not create users table: %v", err)
-	}
-
-	createPappersTable := `
-CREATE TABLE IF NOT EXISTS pappers (
-	id SERIAL PRIMARY KEY,
-	name TEXT NOT NULL,
-	description TEXT NOT NULL,
-	path TEXT NOT NULL,
-	dateTime TIMESTAMP NOT NULL,
-	user_id BIGSERIAL,
-	FOREIGN KEY(user_id) REFERENCES users(id)
-);
-`
-
-	_, err = db.Exec(createPappersTable)
-	if err != nil {
-		log.Fatalf("Could not create pappers table: %v", err)
 	}
 
 }

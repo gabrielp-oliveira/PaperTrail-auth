@@ -3,7 +3,10 @@ package middlewares
 import (
 	"net/http"
 
+	"PaperTrail-auth.com/db"
+	"PaperTrail-auth.com/models"
 	"PaperTrail-auth.com/utils"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,13 +18,24 @@ func Authenticate(context *gin.Context) {
 		return
 	}
 
-	userId, err := utils.VerifyToken(token)
+	userEmail, err := utils.VerifyToken(token)
 
 	if err != nil {
 		context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Not authorized."})
 		return
 	}
 
-	context.Set("userId", userId)
+	query := "SELECT name, email, id FROM users WHERE email = $1"
+	row := db.DB.QueryRow(query, userEmail)
+
+	var userInfo models.UserSafe
+	err = row.Scan(&userInfo.Name, &userInfo.Email, &userInfo.ID)
+
+	if err != nil {
+		context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Not authorized."})
+	}
+
+	context.Set("userInfo", userInfo)
+
 	context.Next()
 }

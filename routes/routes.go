@@ -4,6 +4,7 @@ import (
 	// "PaperTrail-auth.com/middlewares"
 
 	"PaperTrail-auth.com/auth"
+	"PaperTrail-auth.com/middlewares"
 
 	"github.com/gin-gonic/gin"
 )
@@ -11,17 +12,12 @@ import (
 func RegisterRoutes(server *gin.Engine) {
 	// server.GET("/status", status) // GET, POST, PUT, PATCH, DELETE
 
-	// authenticated := server.Group("/")
-	// authenticated.Use(middlewares.Authenticate)
+	logged := server.Group("/logged")
+	logged.Use(middlewares.Authenticate)
+	logged.POST("/listFiles", auth.ListFiles)
 
 	server.POST("/signup", auth.Signup)
 	server.POST("/login", auth.Login)
-
-	// googleAuth := server.Group("/auth/google")
-
-	// googleAuth.GET("/", handleMain)
-	// googleAuth.GET("/login", auth.HandleGoogleLogin)
-	// googleAuth.GET("/callback", auth.HandleGoogleCallback)
 
 	server.GET("/", handleMain)
 	server.GET("/auth/google/login", auth.HandleGoogleLogin)
