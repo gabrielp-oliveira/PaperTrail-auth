@@ -33,8 +33,6 @@ func StartCredentials() *oauth2.Config {
 		ClientID:     ClientID,
 		Scopes: []string{"https://www.googleapis.com/auth/userinfo.profile",
 			"https://www.googleapis.com/auth/userinfo.email",
-			"https://www.googleapis.com/auth/drive",
-			"https://www.googleapis.com/auth/documents",
 		},
 		Endpoint: google.Endpoint,
 	}

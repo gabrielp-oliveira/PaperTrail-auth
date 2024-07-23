@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"net/http"
+	"time"
 
 	"PaperTrail-auth.com/db"
 	"PaperTrail-auth.com/models"
@@ -34,6 +35,12 @@ func Authenticate(context *gin.Context) {
 	if err != nil {
 		context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Not authorized."})
 	}
+
+	
+	context.Writer.Header().Set("Access-Token", userInfo.AccessToken)
+	context.Writer.Header().Set("Refresh-Token", userInfo.RefreshToken)
+	context.Writer.Header().Set("Token-Expiry", userInfo.TokenExpiry.Format(time.RFC3339))
+
 
 	context.Set("userInfo", userInfo)
 
