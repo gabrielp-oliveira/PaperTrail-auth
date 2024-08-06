@@ -26,21 +26,19 @@ func Authenticate(context *gin.Context) {
 		return
 	}
 
-	query := "SELECT name, email, id FROM users WHERE email = $1"
+	query := "SELECT name, email, id, source FROM users WHERE email = $1"
 	row := db.DB.QueryRow(query, userEmail)
 
 	var userInfo models.UserSafe
-	err = row.Scan(&userInfo.Name, &userInfo.Email, &userInfo.ID)
+	err = row.Scan(&userInfo.Name, &userInfo.Email, &userInfo.ID, &userInfo.Source)
 
 	if err != nil {
 		context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Not authorized."})
 	}
 
-	
 	context.Writer.Header().Set("Access-Token", userInfo.AccessToken)
 	context.Writer.Header().Set("Refresh-Token", userInfo.RefreshToken)
 	context.Writer.Header().Set("Token-Expiry", userInfo.TokenExpiry.Format(time.RFC3339))
-
 
 	context.Set("userInfo", userInfo)
 

@@ -22,6 +22,7 @@ type User struct {
 	RefreshToken string    `json:"refresh_token"`
 	TokenExpiry  time.Time `json:"token_expiry"`
 	Base_folder  string    `json:"base_folder"`
+	Source       string    `json:"source"`
 }
 
 type UserSafe struct {
@@ -37,6 +38,7 @@ func (u User) GetUser() UserSafe {
 		AccessToken:  u.AccessToken,
 		RefreshToken: u.RefreshToken,
 		TokenExpiry:  u.TokenExpiry,
+		Source:       u.Source,
 	}
 	userSafe := UserSafe{
 		User: x,
@@ -58,11 +60,11 @@ func (u User) Save() (string, error) {
 
 		var insertQuery string
 		if u.ID == "" {
-			insertQuery = "INSERT INTO users(email, password, created_at, name, accessToken, refresh_token, token_expiry, base_folder) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id"
-			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Base_folder).Scan(&userID)
+			insertQuery = "INSERT INTO users(email, password, created_at, name, accessToken, refresh_token, token_expiry, base_folder, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id"
+			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Base_folder, u.Source).Scan(&userID)
 		} else {
-			insertQuery = "INSERT INTO users(email, password, created_at, id, name, accessToken, refresh_token, token_expiry, base_folder) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id"
-			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.ID, u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Base_folder).Scan(&userID)
+			insertQuery = "INSERT INTO users(email, password, created_at, id, name, accessToken, refresh_token, token_expiry, base_folder, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id"
+			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.ID, u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Base_folder, u.Source).Scan(&userID)
 		}
 
 		if err != nil {
@@ -77,6 +79,40 @@ func (u User) Save() (string, error) {
 		if err != nil {
 			return "", errors.New("Error updating user. " + err.Error())
 		}
+	}
+	return userID, nil
+}
+
+func (u User) CreateUser() (string, error) {
+	var userID string
+
+	query := `SELECT id FROM users WHERE email = $1`
+	err := db.DB.QueryRow(query, u.Email).Scan(&userID)
+
+	if err == sql.ErrNoRows {
+		hashedPassword, err := utils.HashPassword(u.Password)
+		if err != nil {
+			return "", errors.New("hash error. " + err.Error())
+		}
+
+		var insertQuery string
+		if u.ID == "" {
+			insertQuery = "INSERT INTO users(email, password, created_at, name, accessToken, refresh_token, token_expiry, base_folder, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id"
+			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Base_folder, u.Source).Scan(&userID)
+		} else {
+			insertQuery = "INSERT INTO users(email, password, created_at, id, name, accessToken, refresh_token, token_expiry, base_folder, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id"
+			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.ID, u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Base_folder, u.Source).Scan(&userID)
+		}
+
+		if err != nil {
+			return "", errors.New("Error creating new user. " + err.Error())
+		}
+		return userID, nil
+	} else if err != nil {
+		return "", err
+	} else if userID != "" {
+		return "", errors.New("User Already created")
+
 	}
 	return userID, nil
 }
@@ -109,15 +145,6 @@ func (u User) GetClient(config *oauth2.Config) (*http.Client, error) {
 
 	client := config.Client(context.Background(), &token)
 	return client, nil
-}
-
-func (u User) UpdateToken() error {
-	updateQuery := "UPDATE users SET accessToken = $1, refresh_token = $2, token_expiry = $3 WHERE email = $4"
-	_, err := db.DB.Exec(updateQuery, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Email)
-	if err != nil {
-		return errors.New("Error updating token. " + err.Error())
-	}
-	return nil
 }
 
 func (u User) SetToken() error {
