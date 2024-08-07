@@ -19,12 +19,15 @@ func RegisterRoutes(server *gin.Engine) {
 
 	server.POST("/signup", auth.Signup)
 	server.POST("/login", auth.Login)
+	server.GET("/auth/validate/:id/:expiryTime", auth.ValidateEmail)
 
 	server.GET("/", handleMain)
 	server.GET("/auth/google/login", googleClient.HandleGoogleLogin)
+	server.GET("/auth/google/getUrl", googleClient.GetGoogleUrl)
 	server.GET("/auth/google/callback", googleClient.HandleGoogleCallback)
 
 	server.GET("/auth/microsoft/login", microsoftClient.HandleMicrosoftLogin)
+	server.GET("/auth/microsoft/getUrl", microsoftClient.GetMicrosoftUrl)
 	server.GET("/auth/microsoft/callback", microsoftClient.HandleMicrosoftCallback)
 }
 

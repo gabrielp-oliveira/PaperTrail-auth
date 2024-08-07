@@ -116,7 +116,7 @@ func HandleGoogleCallback(c *gin.Context) {
 		return
 	}
 
-	_, err = user.CreateUser()
+	_, err = user.CreateUser(true)
 	if err != nil && err.Error() == "User Already created" {
 		// user.AccessToken = googleOauthToken.AccessToken
 		c.Redirect(http.StatusTemporaryRedirect, "http://localhost:4200/dashboard?accessToken="+token+"&expiry="+user.TokenExpiry.Format(time.RFC3339))
@@ -140,4 +140,8 @@ func GetGoogleToken(config *oauth2.Config, code string) (*oauth2.Token, error) {
 
 func GetGoogleRedirectUrl() string {
 	return StartCredentials().AuthCodeURL(OauthStateString, oauth2.AccessTypeOffline, oauth2.ApprovalForce, oauth2.SetAuthURLParam("prompt", "consent"))
+}
+
+func GetGoogleUrl(C *gin.Context) {
+	C.JSON(http.StatusOK, GetGoogleRedirectUrl())
 }

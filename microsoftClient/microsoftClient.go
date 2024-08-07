@@ -73,6 +73,11 @@ func HandleMicrosoftLogin(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
+func GetMicrosoftUrl(C *gin.Context) {
+	credentials := StartCredentials()
+	C.JSON(http.StatusOK, credentials.AuthCodeURL(getstateString()))
+}
+
 // HandleMicrosoftCallback handles the callback from Microsoft and retrieves the user info
 func HandleMicrosoftCallback(C *gin.Context) {
 	if C.Query("state") != getstateString() {
@@ -133,7 +138,7 @@ func HandleMicrosoftCallback(C *gin.Context) {
 		Base_folder:  "",
 		Source:       "microsoft",
 	}
-	_, err = user.CreateUser()
+	_, err = user.CreateUser(true)
 	if err != nil && err.Error() == "User Already created" {
 		// user.AccessToken = googleOauthToken.AccessToken
 		C.Redirect(http.StatusTemporaryRedirect, "http://localhost:4200/dashboard?accessToken="+token+"&expiry="+user.TokenExpiry.Format(time.RFC3339))

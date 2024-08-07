@@ -23,6 +23,7 @@ type User struct {
 	TokenExpiry  time.Time `json:"token_expiry"`
 	Base_folder  string    `json:"base_folder"`
 	Source       string    `json:"source"`
+	Verification bool      `json:"verification"`
 }
 
 type UserSafe struct {
@@ -39,6 +40,7 @@ func (u User) GetUser() UserSafe {
 		RefreshToken: u.RefreshToken,
 		TokenExpiry:  u.TokenExpiry,
 		Source:       u.Source,
+		Verification: u.Verification,
 	}
 	userSafe := UserSafe{
 		User: x,
@@ -46,7 +48,28 @@ func (u User) GetUser() UserSafe {
 	return userSafe
 }
 
-func (u User) Save() (string, error) {
+func (u *User) GetUserByEmail() error {
+
+	insertQuery := "select id, email, name, accessToken, refresh_token, token_expiry, base_folder, source, verification  from users  where email = $1"
+	err := db.DB.QueryRow(insertQuery, u.Email).Scan(&u.ID, &u.Email, &u.Name, &u.AccessToken, &u.RefreshToken, &u.TokenExpiry, &u.Base_folder, &u.Source, &u.Verification)
+	if err == sql.ErrNoRows {
+		return errors.New("user not found")
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u User) ValidateUser() error {
+	updateQuery := "UPDATE users SET Verification = $1 WHERE email = $2"
+	_, err := db.DB.Exec(updateQuery, u.Verification, u.Email)
+	if err != nil {
+		return errors.New("Error updating users table. " + err.Error())
+	}
+	return nil
+}
+func (u *User) Save() (string, error) {
 	var userID string
 
 	query := `SELECT id FROM users WHERE email = $1`
@@ -74,8 +97,8 @@ func (u User) Save() (string, error) {
 	} else if err != nil {
 		return "", err
 	} else if userID != "" {
-		updateQuery := "UPDATE users SET name = $1, password = $2, accessToken = $3, refresh_token = $4, token_expiry = $5 WHERE id = $6"
-		_, err := db.DB.Exec(updateQuery, u.Name, u.Password, u.AccessToken, u.RefreshToken, u.TokenExpiry, userID)
+		updateQuery := "UPDATE users SET name = $1, accessToken = $2, refresh_token = $3, token_expiry = $4 WHERE id = $5"
+		_, err := db.DB.Exec(updateQuery, u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, userID)
 		if err != nil {
 			return "", errors.New("Error updating user. " + err.Error())
 		}
@@ -83,7 +106,7 @@ func (u User) Save() (string, error) {
 	return userID, nil
 }
 
-func (u User) CreateUser() (string, error) {
+func (u User) CreateUser(status bool) (string, error) {
 	var userID string
 
 	query := `SELECT id FROM users WHERE email = $1`
@@ -97,11 +120,11 @@ func (u User) CreateUser() (string, error) {
 
 		var insertQuery string
 		if u.ID == "" {
-			insertQuery = "INSERT INTO users(email, password, created_at, name, accessToken, refresh_token, token_expiry, base_folder, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id"
-			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Base_folder, u.Source).Scan(&userID)
+			insertQuery = "INSERT INTO users(email, password, created_at, name, accessToken, refresh_token, token_expiry, base_folder, source, verification) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id"
+			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Base_folder, u.Source, status).Scan(&userID)
 		} else {
-			insertQuery = "INSERT INTO users(email, password, created_at, id, name, accessToken, refresh_token, token_expiry, base_folder, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id"
-			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.ID, u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Base_folder, u.Source).Scan(&userID)
+			insertQuery = "INSERT INTO users(email, password, created_at, id, name, accessToken, refresh_token, token_expiry, base_folder, source, verification) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id"
+			err = db.DB.QueryRow(insertQuery, u.Email, hashedPassword, time.Now(), u.ID, u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Base_folder, u.Source, status).Scan(&userID)
 		}
 
 		if err != nil {
