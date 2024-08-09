@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	credentialsconfig "PaperTrail-auth.com/credentialsConfig"
 	"PaperTrail-auth.com/db"
 	"PaperTrail-auth.com/utils"
 	"golang.org/x/oauth2"
@@ -170,17 +171,6 @@ func (u User) GetClient(config *oauth2.Config) (*http.Client, error) {
 	return client, nil
 }
 
-func (u User) SetToken() error {
-	insertQuery := "INSERT INTO users(email, password, created_at, id, name, accessToken, refresh_token, token_expiry) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id"
-
-	_, err := db.DB.Exec(insertQuery,
-		u.Email, "", time.Now(), u.ID, u.Name, u.AccessToken, u.RefreshToken, u.TokenExpiry)
-	if err != nil {
-		return errors.New("Unable to save token in database: " + err.Error())
-
-	}
-	return nil
-}
 func (u *User) ValidateCredentials() error {
 	query := "SELECT id, password, name FROM users WHERE email = $1"
 	row := db.DB.QueryRow(query, u.Email)
@@ -189,14 +179,52 @@ func (u *User) ValidateCredentials() error {
 	err := row.Scan(&u.ID, &retrievedPassword, &u.Name)
 
 	if err != nil {
-		return errors.New("credenciais inválidas")
+		return errors.New("invalid credentials")
 	}
 
 	passwordIsValid := utils.CheckPasswordHash(u.Password, retrievedPassword)
 
 	if !passwordIsValid {
-		return errors.New("credentials invalid")
+		return errors.New("invalid credentials")
 	}
 
+	return nil
+}
+
+func (u *User) UpdateOAuthToken() (*oauth2.Token, error) {
+	var googleOauthConfig = credentialsconfig.StartGoogleCredentials()
+
+	config := googleOauthConfig
+
+	token := &oauth2.Token{
+		AccessToken:  u.AccessToken,
+		RefreshToken: u.RefreshToken,
+		Expiry:       u.TokenExpiry,
+	}
+
+	tokenSource := config.TokenSource(context.Background(), token)
+	newToken, err := tokenSource.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	u.AccessToken = newToken.AccessToken
+	u.RefreshToken = newToken.RefreshToken
+	u.TokenExpiry = newToken.Expiry.Add(time.Hour * 8)
+
+	err = u.UpdateToken()
+	if err != nil {
+		return nil, err
+	}
+
+	return newToken, nil
+}
+
+func (u *User) UpdateToken() error {
+	updateQuery := "UPDATE users SET accessToken = $1, refresh_token = $2, token_expiry = $3 WHERE email = $4"
+	_, err := db.DB.Exec(updateQuery, u.AccessToken, u.RefreshToken, u.TokenExpiry, u.Email)
+	if err != nil {
+		return errors.New("Error updating token. " + err.Error())
+	}
 	return nil
 }

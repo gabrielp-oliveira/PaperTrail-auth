@@ -37,7 +37,6 @@ func Authenticate(context *gin.Context) {
 	}
 
 	context.Writer.Header().Set("Access-Token", userInfo.AccessToken)
-	context.Writer.Header().Set("Refresh-Token", userInfo.RefreshToken)
 	context.Writer.Header().Set("Token-Expiry", userInfo.TokenExpiry.Format(time.RFC3339))
 
 	context.Set("userInfo", userInfo)

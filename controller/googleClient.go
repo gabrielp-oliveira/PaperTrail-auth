@@ -1,4 +1,4 @@
-package googleClient
+package controller
 
 import (
 	"context"
@@ -6,15 +6,13 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
+	credentialsconfig "PaperTrail-auth.com/credentialsConfig"
 	"PaperTrail-auth.com/models"
 	"PaperTrail-auth.com/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
 
 var OauthStateString = "randomstatestring"
@@ -26,33 +24,6 @@ type GoogleUser struct {
 	Picture string `json:"picture"`
 }
 
-func StartCredentials() *oauth2.Config {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf(".env load error: %v", err)
-	}
-	ClientID := os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
-	if ClientID == "" {
-		log.Fatalf("credentials error: %v", err)
-	}
-
-	ClientSecret := os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
-	if ClientSecret == "" {
-		log.Fatalf("credentials error: %v", err)
-	}
-
-	return &oauth2.Config{
-		RedirectURL:  "http://localhost:8080/auth/google/callback",
-		ClientSecret: ClientSecret,
-		ClientID:     ClientID,
-		Scopes: []string{"https://www.googleapis.com/auth/userinfo.profile",
-			"https://www.googleapis.com/auth/userinfo.email",
-		},
-		Endpoint: google.Endpoint,
-	}
-}
-
-var googleOauthConfig = StartCredentials()
 var oauthStateString = "randomstatestring"
 
 func HandleGoogleLogin(c *gin.Context) {
@@ -66,6 +37,7 @@ func HandleGoogleCallback(c *gin.Context) {
 		c.Redirect(http.StatusTemporaryRedirect, "/")
 		return
 	}
+	var googleOauthConfig = credentialsconfig.StartGoogleCredentials()
 
 	code := c.Query("code")
 	googleOauthToken, err := GetGoogleToken(googleOauthConfig, code)
@@ -139,7 +111,7 @@ func GetGoogleToken(config *oauth2.Config, code string) (*oauth2.Token, error) {
 }
 
 func GetGoogleRedirectUrl() string {
-	return StartCredentials().AuthCodeURL(OauthStateString, oauth2.AccessTypeOffline, oauth2.ApprovalForce, oauth2.SetAuthURLParam("prompt", "consent"))
+	return credentialsconfig.StartGoogleCredentials().AuthCodeURL(OauthStateString, oauth2.AccessTypeOffline, oauth2.ApprovalForce, oauth2.SetAuthURLParam("prompt", "consent"))
 }
 
 func GetGoogleUrl(C *gin.Context) {

@@ -1,4 +1,4 @@
-package auth
+package controller
 
 import (
 	"fmt"
@@ -12,14 +12,17 @@ import (
 	"github.com/google/uuid"
 )
 
-var oauthStateString = "randomstatestring"
-
 func Signup(C *gin.Context) {
 	var user models.User
 
 	err := C.ShouldBindJSON(&user)
 	if err != nil {
 		utils.RespondWithError(C, http.StatusBadRequest, "Could not parse request data.", err)
+		return
+	}
+
+	if !utils.IsValidEmail(user.Email) {
+		C.JSON(400, gin.H{"error": "Invalid email address"})
 		return
 	}
 
@@ -48,7 +51,8 @@ func Signup(C *gin.Context) {
 	emailData.To = append(emailData.To, user.Email)
 	expiryTime := now.Add(30 * time.Minute).Format(time.RFC3339)
 	link := fmt.Sprintf("http://localhost:8080/auth/validate/%s/%s", hashedId, expiryTime)
-	emailData.Data = link
+	emailData.Data = fmt.Sprintf("Please, click in the link to validate your account: %s", link)
+	emailData.Subject = "validate PapperTrail user Email"
 
 	_, err = emailHandler.SendEmail(C, emailData)
 	if err != nil {
@@ -65,44 +69,57 @@ func Signup(C *gin.Context) {
 	C.JSON(http.StatusCreated, gin.H{"message": "We are good to go, please validate your email."})
 }
 
-func Login(context *gin.Context) {
+func Login(C *gin.Context) {
 	var user models.User
 
-	err := context.ShouldBindJSON(&user)
+	err := C.ShouldBindJSON(&user)
 
 	if err != nil {
-		utils.RespondWithError(context, http.StatusBadRequest, "Could not parse request data.", err)
+		utils.RespondWithError(C, http.StatusBadRequest, "Could not parse request data.", err)
 		return
 	}
 
 	err = user.ValidateCredentials()
 
 	if err != nil {
-		utils.RespondWithError(context, http.StatusUnauthorized, "Could not authenticate user.", err)
+		utils.RespondWithError(C, http.StatusUnauthorized, "Could not authenticate user.", err)
 		return
 	}
 	err = user.GetUserByEmail()
 	if !user.Verification {
-		utils.RespondWithError(context, http.StatusUnauthorized, "please, validate your email account.", err)
+		utils.RespondWithError(C, http.StatusUnauthorized, "please, validate your email account.", err)
 		return
 	}
 	if err != nil {
-		utils.RespondWithError(context, http.StatusUnauthorized, "Could not get user info.", err)
+		utils.RespondWithError(C, http.StatusUnauthorized, "Could not get user info.", err)
 		return
 	}
 
 	if !user.Verification {
-		utils.RespondWithError(context, http.StatusUnauthorized, "user email not verified.", err)
+		utils.RespondWithError(C, http.StatusUnauthorized, "user email not verified.", err)
 		return
 	}
 	token, err := utils.GenerateToken(user.Email, user.ID)
-
 	if err != nil {
-		utils.RespondWithError(context, http.StatusInternalServerError, "Could not authenticate user.", err)
+		utils.RespondWithError(C, http.StatusInternalServerError, "Could not authenticate user.", err)
 		return
 	}
 
-	context.JSON(http.StatusOK, gin.H{"message": "Login successful!", "token": token, "userInfo": user.GetUser()})
+	user.AccessToken = token
+	user.TokenExpiry = time.Now().Add(time.Hour * 4)
+
+	newToken, err := user.UpdateOAuthToken()
+	if err != nil {
+		C.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "error generating access token.."})
+		return
+	}
+
+	C.Writer.Header().Set("accessToken", newToken.AccessToken)
+	C.Writer.Header().Set("expiry", newToken.Expiry.Format(time.RFC3339))
+	C.Writer.Header().Set("Access-Control-Expose-Headers", "accessToken, expiry")
+
+	C.JSON(http.StatusOK, gin.H{"message": "Login successful!"})
+
 	return
 }
 
@@ -130,6 +147,7 @@ func ValidateEmail(C *gin.Context) {
 	var user models.User
 	user.Email = email
 	err = user.GetUserByEmail()
+	user.TokenExpiry = time.Now().Add(time.Hour * 4)
 	if err != nil {
 		utils.RespondWithError(C, http.StatusInternalServerError, "Error retrieving user", err)
 		return
@@ -153,5 +171,7 @@ func ValidateEmail(C *gin.Context) {
 		return
 	}
 
-	C.JSON(http.StatusOK, gin.H{"message": "Account successfully validated!", "token": token, "userInfo": user.GetUser()})
+	C.Redirect(http.StatusTemporaryRedirect, "http://localhost:4200/dashboard?accessToken="+token+"&expiry="+user.TokenExpiry.Format(time.RFC3339))
+
+	// C.JSON(http.StatusOK, gin.H{"message": "Account successfully validated!", "token": token, "userInfo": user.GetUser()})
 }

@@ -3,9 +3,7 @@ package routes
 import (
 	// "PaperTrail-auth.com/middlewares"
 
-	"PaperTrail-auth.com/auth"
-	"PaperTrail-auth.com/googleClient"
-	"PaperTrail-auth.com/microsoftClient"
+	"PaperTrail-auth.com/controller"
 	"PaperTrail-auth.com/middlewares"
 
 	"github.com/gin-gonic/gin"
@@ -17,18 +15,18 @@ func RegisterRoutes(server *gin.Engine) {
 	logged := server.Group("/logged")
 	logged.Use(middlewares.Authenticate)
 
-	server.POST("/signup", auth.Signup)
-	server.POST("/login", auth.Login)
-	server.GET("/auth/validate/:id/:expiryTime", auth.ValidateEmail)
+	server.POST("/signup", controller.Signup)
+	server.POST("/login", controller.Login)
+	server.GET("/auth/validate/:id/:expiryTime", controller.ValidateEmail)
 
 	server.GET("/", handleMain)
-	server.GET("/auth/google/login", googleClient.HandleGoogleLogin)
-	server.GET("/auth/google/getUrl", googleClient.GetGoogleUrl)
-	server.GET("/auth/google/callback", googleClient.HandleGoogleCallback)
+	server.GET("/auth/google/login", controller.HandleGoogleLogin)
+	server.GET("/auth/google/getUrl", controller.GetGoogleUrl)
+	server.GET("/auth/google/callback", controller.HandleGoogleCallback)
 
-	server.GET("/auth/microsoft/login", microsoftClient.HandleMicrosoftLogin)
-	server.GET("/auth/microsoft/getUrl", microsoftClient.GetMicrosoftUrl)
-	server.GET("/auth/microsoft/callback", microsoftClient.HandleMicrosoftCallback)
+	server.GET("/auth/microsoft/login", controller.HandleMicrosoftLogin)
+	server.GET("/auth/microsoft/getUrl", controller.GetMicrosoftUrl)
+	server.GET("/auth/microsoft/callback", controller.HandleMicrosoftCallback)
 }
 
 // http://localhost:8080/auth/google/login

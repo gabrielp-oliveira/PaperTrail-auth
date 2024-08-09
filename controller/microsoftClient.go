@@ -1,4 +1,4 @@
-package microsoftClient
+package controller
 
 import (
 	"context"
@@ -9,12 +9,10 @@ import (
 	"os"
 	"time"
 
+	credentialsconfig "PaperTrail-auth.com/credentialsConfig"
 	"PaperTrail-auth.com/models"
 	"PaperTrail-auth.com/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/microsoft"
 )
 
 type MicrosoftUser struct {
@@ -25,38 +23,6 @@ type MicrosoftUser struct {
 }
 
 // StartCredentials initializes the OAuth2 configuration using environment variables
-func StartCredentials() *oauth2.Config {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf(".env load error: %v", err)
-	}
-	ClientID := os.Getenv("MICROSOFT_CLIENT_ID")
-	if ClientID == "" {
-		log.Fatalf("credentials error: MICROSOFT_CLIENT_ID is missing in local env variables.")
-	}
-
-	ClientSecret := os.Getenv("MICROSOFT_SECRET_VALUE")
-	if ClientSecret == "" {
-		log.Fatalf("credentials error: MICROSOFT_SECRET_VALUE is missing in local env variables.")
-	}
-	TenantId := os.Getenv("MICROSOFT_TENANT_ID")
-	if TenantId == "" {
-		log.Fatalf("credentials error: MICROSOFT_TENANT_ID is missing in local env variables.")
-	}
-	// permissionId := os.Getenv("MICROSOFT_PERMISSION_ID")
-	// if TenantId == "" {
-	// 	log.Fatalf("credentials error: MICROSOFT_PERMISSION_ID is missing in local env variables.")
-	// }
-
-	return &oauth2.Config{
-		ClientID:     ClientID,
-		ClientSecret: ClientSecret,
-		RedirectURL:  "http://localhost:8080/auth/microsoft/callback",
-		Scopes:       []string{"https://graph.microsoft.com/User.Read", "https://graph.microsoft.com/User.ReadBasic.All"},
-		Endpoint:     microsoft.AzureADEndpoint("common"),
-	}
-
-}
 
 func getstateString() string {
 	stateString := os.Getenv("RANDOM_STATE_STRING")
@@ -68,13 +34,13 @@ func getstateString() string {
 
 // HandleMicrosoftLogin redirects the user to the Microsoft login page
 func HandleMicrosoftLogin(c *gin.Context) {
-	credentials := StartCredentials()
+	credentials := credentialsconfig.StartMicrosoftCredentials()
 	url := credentials.AuthCodeURL(getstateString())
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
 func GetMicrosoftUrl(C *gin.Context) {
-	credentials := StartCredentials()
+	credentials := credentialsconfig.StartMicrosoftCredentials()
 	C.JSON(http.StatusOK, credentials.AuthCodeURL(getstateString()))
 }
 
@@ -93,7 +59,7 @@ func HandleMicrosoftCallback(C *gin.Context) {
 		return
 	}
 
-	credentials := StartCredentials()
+	credentials := credentialsconfig.StartMicrosoftCredentials()
 	microsoftOauthToken, err := credentials.Exchange(context.Background(), code)
 	if err != nil {
 		log.Printf("oauthConfig.Exchange() failed with '%s'\n", err)
